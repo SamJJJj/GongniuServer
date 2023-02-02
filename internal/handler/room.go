@@ -4,6 +4,7 @@ import (
 	"demo/internal/ecode"
 	"demo/internal/model"
 	"demo/internal/server/websocket"
+	"demo/internal/service"
 	"encoding/json"
 	"github.com/go-eagle/eagle/pkg/log"
 )
@@ -74,7 +75,60 @@ func JoinRoomHander(client *websocket.Client, cmd string, message []byte) (code 
 	if err != nil {
 		log.Error("join room json marshal error", message)
 		code = ecode.InternalError
-		data = []byte("login error")
+		data = []byte(err.Error())
+		return
+	}
+	clients := room.GetNeedNotifyClients(player)
+	websocket.NotifyMessage(clients, cmd, code, data)
+	return
+}
+
+func LeaveRoomHander(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
+	request := &model.LeaveRoomRequest{}
+	err := json.Unmarshal(message, request)
+	if err != nil {
+		log.Error("join room params error", message)
+		code = ecode.ParamsError
+		data = []byte("join room error")
+		return
+	}
+	player, ok := manager.GetPlayerById(request.UserId)
+	if !ok {
+		log.Error("user id error", message)
+		code = ecode.ParamsError
+		data = []byte("user id error")
+		return
+	}
+	err = player.LeaveRoom()
+	if err != nil {
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
+	room, ok := manager.GetRoomById(player.Room.RoomId)
+
+	master, _ := manager.GetPlayerById(room.Master)
+
+	var players = *new([]model.PlayerInfo)
+	for _, v := range room.Users {
+		players = append(players, model.PlayerInfo{
+			User:    *v.UserInfo,
+			Seat:    v.Seat,
+			IsReady: v.IsReady,
+		})
+	}
+
+	response := &model.RoomMemberChangeResponse{
+		CurrentSeat: service.TotalSeats,
+		Players:     players,
+		MasterSeat:  master.Seat,
+	}
+
+	data, err = json.Marshal(&response)
+	if err != nil {
+		log.Error("leave room json marshal error", message)
+		code = ecode.InternalError
+		data = []byte(err.Error())
 		return
 	}
 	clients := room.GetNeedNotifyClients(player)
