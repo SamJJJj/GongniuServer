@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-type DisposeFunc func(client *Client, message []byte) (code uint32, data interface{})
+type DisposeFunc func(client *Client, cmd string, message []byte) (code uint32, data interface{})
 
 var (
 	handlers        = make(map[string]DisposeFunc)
@@ -65,7 +65,7 @@ func ProcessData(client *Client, message []byte) {
 	)
 
 	if hander, ok := getHandler(cmd); ok {
-		code, data = hander(client, requestData)
+		code, data = hander(client, cmd, requestData)
 	} else {
 		code = ecode.RoutNotExist
 		log.Warn("no exist router", cmd)
@@ -81,5 +81,22 @@ func ProcessData(client *Client, message []byte) {
 
 	client.SendMsg(headByte)
 	log.Info("send response to", client.Addr, "cmd", cmd, "code", code)
+	return
+}
+
+func NotifyMessage(clients []*Client, cmd string, code uint32, data interface{}) {
+	msg := ecode.GetErrorMessage(code)
+	responseHead := model.NewResponseHead(cmd, code, msg, data)
+
+	headByte, err := json.Marshal(responseHead)
+	if err != nil {
+		log.Error("notify head json", err)
+		return
+	}
+
+	for _, c := range clients {
+		c.SendMsg(headByte)
+		log.Info("notifying msg to", c.Addr, "cmd", cmd, "code", code)
+	}
 	return
 }

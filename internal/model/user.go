@@ -13,8 +13,7 @@ type User struct {
 
 func QueryUserById(userId string) (user *User, ok bool) {
 	user = new(User)
-	user.UserId = userId
-	DB.First(user)
+	DB.Where("user_id = ?", userId).First(&user)
 	if len(user.NickName) != 0 {
 		ok = true
 		return
