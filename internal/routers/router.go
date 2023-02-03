@@ -60,8 +60,9 @@ func NewRouter() *gin.Engine {
 }
 
 func RegisterWSRouter() {
-	websocket.RegisterHandler("login", handler.LoginHandler)
-	websocket.RegisterHandler("create_room", handler.CreatRoomHandler)
-	websocket.RegisterHandler("join_room", handler.JoinRoomHander)
-	websocket.RegisterHandler("leave_room", handler.LeaveRoomHander)
+	websocket.RegisterHandler(handler.Login, handler.LoginHandler)
+	websocket.RegisterHandler(handler.CreateRoom, handler.CreatRoomHandler)
+	websocket.RegisterHandler(handler.JoinRoom, handler.JoinRoomHander)
+	websocket.RegisterHandler(handler.LeaveRoom, handler.LeaveRoomHander)
+	websocket.RegisterHandler(handler.PlayerReady, handler.PlayerReadyHandler)
 }

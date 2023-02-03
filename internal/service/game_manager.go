@@ -86,10 +86,14 @@ func (g *GameManager) GetPlayerById(userId string) (*Player, bool) {
 	return playerInfo.Player, ok
 }
 
-func (g *GameManager) GetRoomById(roomId string) (room *Room, ok bool) {
+func (g *GameManager) GetRoomById(roomId string) (room *Room, err error) {
 	g.roomLock.RLock()
 	defer g.roomLock.RUnlock()
-	room, ok = g.Rooms[roomId]
+	room, ok := g.Rooms[roomId]
+	if !ok {
+		room = nil
+		err = fmt.Errorf("no such room")
+	}
 	return
 }
 

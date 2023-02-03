@@ -27,17 +27,20 @@ func LoginHandler(client *websocket.Client, cmd string, message []byte) (code ui
 		log.Info("register to mysql")
 		user.UserId = request.UserId
 		user.AccountId = request.AccountId
-		user.NickName = "test"
+		user.NickName = "test" // TODO 需要随机生成
 		user.AvatarUrl = "test.png"
 		model.InsertUser(user)
 	}
+	// service error 未处理
+	manager.UserLogin(user.UserId, client, user)
 
 	code = ecode.Success
 	response := model.LoginResponse{
-		User: *user,
+		User: model.UserInfo{
+			NickName:  user.NickName,
+			AvatarUrl: user.AvatarUrl,
+		},
 	}
-	// service error 未处理
-	manager.UserLogin(user.UserId, client, user)
 
 	data, err = json.Marshal(&response)
 	if err != nil {

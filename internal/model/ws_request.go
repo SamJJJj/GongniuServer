@@ -11,14 +11,19 @@ type LoginRequest struct {
 	AccountId string `json:"account_id"` //账户id
 }
 
+type UserInfo struct {
+	NickName  string `json:"nick_name"`
+	AvatarUrl string `json:"avatar_url"`
+}
+
 type LoginResponse struct {
-	User User `json:"user_info"`
+	User UserInfo `json:"user_info"`
 }
 
 type PlayerInfo struct {
-	User    User  `json:"user_info"`
-	Seat    uint8 `json:"seat"`
-	IsReady bool  `json:"is_ready"`
+	User    UserInfo `json:"user_info"`
+	Seat    uint8    `json:"seat"`
+	IsReady bool     `json:"is_ready"`
 }
 
 type CreateRoomRequest struct {
@@ -34,7 +39,7 @@ type JoinRoomRequest struct {
 	UserId string `json:"user_id"`
 }
 
-type RoomMemberChangeResponse struct {
+type RoomMemberChangeNotify struct {
 	CurrentSeat uint8        `json:"current_seat"`
 	Players     []PlayerInfo `json:"players"`
 	MasterSeat  uint8        `json:"master_seat"`
@@ -42,4 +47,15 @@ type RoomMemberChangeResponse struct {
 
 type LeaveRoomRequest struct {
 	UserId string `json:"user_id"`
+}
+
+type PlayerReadyRequest struct {
+	RoomId string `json:"room_id"`
+	UserId string `json:"user_id"`
+}
+
+type PlayerReadyResponse struct {
+}
+
+type GameStartNotify struct {
 }

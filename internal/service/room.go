@@ -54,9 +54,7 @@ func (r *Room) AddPlayer(userId string) (err error, seat uint8) {
 			seat = (seat + 1) % TotalSeats
 		}
 		player.Seat = seat
-		r.userLock.Lock()
-		defer r.userLock.Unlock()
-		r.Users[userId] = player
+		r.addUser(userId, player)
 		return
 	}
 	err = fmt.Errorf("no enough seat")
@@ -94,6 +92,8 @@ func (r *Room) RemovePlayer(userId string) error {
 
 func (r *Room) GetNeedNotifyClients(player *Player) []*websocket.Client {
 	var result []*websocket.Client
+	r.userLock.RLock()
+	defer r.userLock.RUnlock()
 	for _, p := range r.Users {
 		if p.UserInfo.UserId != player.UserInfo.UserId {
 			client, _ := Manager.GetClientByUid(p.UserInfo.UserId)
@@ -101,6 +101,49 @@ func (r *Room) GetNeedNotifyClients(player *Player) []*websocket.Client {
 		}
 	}
 	return result
+}
+
+func (r *Room) GetAllClients() []*websocket.Client {
+	var result []*websocket.Client
+	r.userLock.RLock()
+	defer r.userLock.RUnlock()
+	for _, p := range r.Users {
+		client, _ := Manager.GetClientByUid(p.UserInfo.UserId)
+		result = append(result, client)
+	}
+	return result
+}
+
+func (r *Room) GetAllPlayers() []*Player {
+	var result []*Player
+	r.userLock.RLock()
+	defer r.userLock.RUnlock()
+	for _, p := range r.Users {
+		result = append(result, p)
+	}
+	return result
+}
+
+func (r *Room) CheckIfRoomNeedStart() bool {
+	res := true
+	r.userLock.RLock()
+	defer r.userLock.RUnlock()
+	for _, player := range r.Users {
+		if !player.IsReady {
+			res = false
+			break
+		}
+	}
+	return res
+}
+func (r *Room) GetPlayerById(userId string) (player *Player, err error) {
+	r.userLock.RLock()
+	player, ok := r.Users[userId]
+	if !ok {
+		err = fmt.Errorf("room no such user")
+		return
+	}
+	return
 }
 
 func (r *Room) getUserLen() uint8 {
@@ -122,4 +165,10 @@ func (r *Room) isSeatEmpty(seat uint8) bool {
 		}
 	}
 	return true
+}
+
+func (r *Room) addUser(userId string, player *Player) {
+	r.userLock.Lock()
+	defer r.userLock.Unlock()
+	r.Users[userId] = player
 }

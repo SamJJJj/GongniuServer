@@ -54,18 +54,26 @@ func JoinRoomHander(client *websocket.Client, cmd string, message []byte) (code 
 		data = []byte(err1.Error())
 		return
 	}
+	room, err := manager.GetRoomById(request.RoomId)
+	if err != nil {
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
 	var players = *new([]model.PlayerInfo)
-	room, ok := manager.GetRoomById(request.RoomId)
-	for _, v := range room.Users {
+	for _, v := range room.GetAllPlayers() {
 		players = append(players, model.PlayerInfo{
-			User:    *v.UserInfo,
+			User: model.UserInfo{
+				NickName:  v.UserInfo.NickName,
+				AvatarUrl: v.UserInfo.AvatarUrl,
+			},
 			Seat:    v.Seat,
 			IsReady: v.IsReady,
 		})
 	}
 	master, _ := manager.GetPlayerById(room.Master)
 
-	response := &model.RoomMemberChangeResponse{
+	response := &model.RoomMemberChangeNotify{
 		CurrentSeat: seat,
 		Players:     players,
 		MasterSeat:  master.Seat,
@@ -79,7 +87,7 @@ func JoinRoomHander(client *websocket.Client, cmd string, message []byte) (code 
 		return
 	}
 	clients := room.GetNeedNotifyClients(player)
-	websocket.NotifyMessage(clients, cmd, code, data)
+	websocket.NotifyMessage(clients, NotifyRoomMemChange, code, data)
 	return
 }
 
@@ -105,20 +113,28 @@ func LeaveRoomHander(client *websocket.Client, cmd string, message []byte) (code
 		data = []byte(err.Error())
 		return
 	}
-	room, ok := manager.GetRoomById(player.Room.RoomId)
+	room, err := manager.GetRoomById(player.Room.RoomId)
+	if err != nil {
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
 
 	master, _ := manager.GetPlayerById(room.Master)
 
 	var players = *new([]model.PlayerInfo)
 	for _, v := range room.Users {
 		players = append(players, model.PlayerInfo{
-			User:    *v.UserInfo,
+			User: model.UserInfo{
+				NickName:  v.UserInfo.NickName,
+				AvatarUrl: v.UserInfo.AvatarUrl,
+			},
 			Seat:    v.Seat,
 			IsReady: v.IsReady,
 		})
 	}
 
-	response := &model.RoomMemberChangeResponse{
+	response := &model.RoomMemberChangeNotify{
 		CurrentSeat: service.TotalSeats,
 		Players:     players,
 		MasterSeat:  master.Seat,
@@ -132,6 +148,6 @@ func LeaveRoomHander(client *websocket.Client, cmd string, message []byte) (code
 		return
 	}
 	clients := room.GetNeedNotifyClients(player)
-	websocket.NotifyMessage(clients, cmd, code, data)
+	websocket.NotifyMessage(clients, NotifyRoomMemChange, code, data)
 	return
 }
