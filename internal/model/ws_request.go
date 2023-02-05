@@ -16,6 +16,11 @@ type UserInfo struct {
 	AvatarUrl string `json:"avatar_url"`
 }
 
+type CardsInfo struct {
+	Head uint8 `json:"head"`
+	Tail uint8 `json:"tail"`
+}
+
 type LoginResponse struct {
 	User UserInfo `json:"user_info"`
 }
@@ -58,4 +63,14 @@ type PlayerReadyResponse struct {
 }
 
 type GameStartNotify struct {
+}
+
+type GetHandCardsRequest struct {
+	UserId string `json:"user_id"`
+	RoomId string `json:"room_id"`
+	SeatNo string `json:"seat_no"`
+}
+
+type GetHandCardsResponse struct {
+	Cards []CardsInfo `json:"cards"`
 }

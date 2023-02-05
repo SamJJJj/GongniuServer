@@ -5,6 +5,7 @@ import "math/rand"
 const (
 	TotalCardsCnt = 24
 	TotalPlayers  = 4
+	HandCardCount = 6
 )
 
 type Card struct {

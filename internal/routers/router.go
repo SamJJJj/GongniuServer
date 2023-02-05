@@ -65,4 +65,5 @@ func RegisterWSRouter() {
 	websocket.RegisterHandler(handler.JoinRoom, handler.JoinRoomHander)
 	websocket.RegisterHandler(handler.LeaveRoom, handler.LeaveRoomHander)
 	websocket.RegisterHandler(handler.PlayerReady, handler.PlayerReadyHandler)
+	websocket.RegisterHandler(handler.GetHandCards, handler.GetHandCardsHandler)
 }

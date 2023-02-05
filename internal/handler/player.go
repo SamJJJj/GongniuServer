@@ -4,8 +4,10 @@ import (
 	"demo/internal/ecode"
 	"demo/internal/model"
 	"demo/internal/server/websocket"
+	"demo/internal/service"
 	"encoding/json"
 	"github.com/go-eagle/eagle/pkg/log"
+	"strconv"
 )
 
 func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
@@ -67,6 +69,8 @@ func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (c
 		}
 		master, _ := manager.GetPlayerById(room.Master)
 
+		clients = room.GetNeedNotifyClients(player)
+
 		response := &model.RoomMemberChangeNotify{
 			CurrentSeat: player.Seat,
 			Players:     players,
@@ -81,6 +85,7 @@ func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (c
 		}
 	} else {
 		// 开始游戏
+		clients = room.GetAllClients()
 		notifyCmd = NotifyGameStart
 		response := model.GameStartNotify{}
 		data, err = json.Marshal(&response)
@@ -94,5 +99,63 @@ func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (c
 	}
 	websocket.NotifyMessage(clients, notifyCmd, code, data)
 
+	return
+}
+
+func GetHandCardsHandler(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
+	request := &model.GetHandCardsRequest{}
+	err := json.Unmarshal(message, request)
+	if err != nil {
+		log.Error("get cards params error", message)
+		code = ecode.ParamsError
+		data = []byte("param unmarshal error")
+		return
+	}
+
+	room, err := manager.GetRoomById(request.RoomId)
+	if err != nil {
+		log.Error("get cards params error", message)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+	// 检查用户是否在对应房间里
+	_, err = room.GetPlayerById(request.UserId)
+	if err != nil {
+		log.Error("get cards params error", message)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+
+	seat, err := strconv.Atoi(request.SeatNo)
+	if err != nil {
+		log.Error("get cards params error", message)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+	startIdx := seat * service.HandCardCount
+	cardsIdx := room.Cards[startIdx : startIdx+service.HandCardCount]
+	cards := make([]model.CardsInfo, service.HandCardCount)
+	for idx, i := range cardsIdx {
+		cards[idx] = model.CardsInfo{
+			Head: service.AllCards[i].Head,
+			Tail: service.AllCards[i].Tail,
+		}
+	}
+
+	code = ecode.Success
+	response := model.GetHandCardsResponse{
+		Cards: cards,
+	}
+
+	data, err = json.Marshal(&response)
+	if err != nil {
+		log.Error("login json marshal error", message)
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
 	return
 }
