@@ -25,6 +25,7 @@ type Room struct {
 	RoomStatus uint32             // 房间状态
 	Users      map[string]*Player // 所有用户的id
 	Master     string             // 房主的用户id, 庄家的id
+	Cards      []uint8
 	userLock   sync.RWMutex
 }
 
@@ -38,6 +39,7 @@ func NewRoom(masterId string, roomId string) *Room {
 		RoomStatus: GameReadying,
 		Users:      users,
 		Master:     masterId,
+		Cards:      make([]uint8, TotalCardsCnt),
 	}
 }
 
@@ -144,6 +146,12 @@ func (r *Room) GetPlayerById(userId string) (player *Player, err error) {
 		return
 	}
 	return
+}
+
+func (r *Room) GameStart() (err error) {
+	r.RoomStatus = GamePlaying
+	r.Cards = Shuffle()
+	return err
 }
 
 func (r *Room) getUserLen() uint8 {

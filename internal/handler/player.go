@@ -90,6 +90,7 @@ func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (c
 			data = []byte(err.Error())
 			return
 		}
+		room.GameStart()
 	}
 	websocket.NotifyMessage(clients, notifyCmd, code, data)
 
