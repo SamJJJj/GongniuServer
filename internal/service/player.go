@@ -6,19 +6,19 @@ import (
 )
 
 type Player struct {
-	UserInfo  *model.User
-	Room      *Room
-	IsReady   bool
-	Seat      uint8
-	HandCards []Card
+	UserInfo        *model.User
+	Room            *Room
+	IsReady         bool
+	Seat            uint8
+	HandCardsGetted bool
 }
 
 func NewPlayer(userInfo *model.User) *Player {
 	return &Player{
-		UserInfo:  userInfo,
-		Seat:      TotalSeats,
-		HandCards: make([]Card, 6),
-		IsReady:   false,
+		UserInfo:        userInfo,
+		Seat:            TotalSeats,
+		HandCardsGetted: false,
+		IsReady:         false,
 	}
 }
 
@@ -53,4 +53,8 @@ func (p *Player) Ready() {
 		return
 	}
 	p.IsReady = true
+}
+
+func (p *Player) CardsGetted() {
+	p.HandCardsGetted = true
 }

@@ -152,7 +152,45 @@ func GetHandCardsHandler(client *websocket.Client, cmd string, message []byte) (
 
 	data, err = json.Marshal(&response)
 	if err != nil {
-		log.Error("login json marshal error", message)
+		log.Error("get hand card json marshal error", message)
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
+	return
+}
+
+func CheckGetCardsHandler(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
+	request := &model.CheckGetCardsRequest{}
+	err := json.Unmarshal(message, request)
+	if err != nil {
+		log.Error("check get cards  params error", message)
+		code = ecode.ParamsError
+		data = []byte("param unmarshal error")
+		return
+	}
+	room, err := manager.GetRoomById(request.RoomId)
+	if err != nil {
+		log.Error("get cards params error", message, err)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+	// 检查用户是否在对应房间里
+	player, err := room.GetPlayerById(request.UserId)
+	if err != nil {
+		log.Error("get cards params error", message)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+	player.CardsGetted()
+	code = ecode.Success
+	response := model.CheckGetCardsResponse{}
+
+	data, err = json.Marshal(&response)
+	if err != nil {
+		log.Error("check get cards json marshal error", message)
 		code = ecode.InternalError
 		data = []byte(err.Error())
 		return

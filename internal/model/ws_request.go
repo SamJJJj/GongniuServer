@@ -74,3 +74,11 @@ type GetHandCardsRequest struct {
 type GetHandCardsResponse struct {
 	Cards []CardsInfo `json:"cards"`
 }
+
+type CheckGetCardsRequest struct {
+	UserId string `json:"user_id"`
+	RoomId string `json:"room_id"`
+}
+
+type CheckGetCardsResponse struct {
+}
