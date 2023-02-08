@@ -82,3 +82,18 @@ type CheckGetCardsRequest struct {
 
 type CheckGetCardsResponse struct {
 }
+
+type GamePlayingNotify struct {
+	CurrPlayingSeat uint8       `json:"curr_playing_seat"`
+	Cards           []CardsInfo `json:"curr_cards"`
+}
+
+type PlayCardRequest struct {
+	UserId string    `json:"user_id"` // 是否能统一进行check?
+	RoomId string    `json:"room_id"`
+	Seat   uint8     `json:"seat"`
+	Card   CardsInfo `json:"card"`
+}
+
+type PlayCardResponse struct {
+}

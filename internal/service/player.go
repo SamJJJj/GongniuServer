@@ -11,6 +11,7 @@ type Player struct {
 	IsReady         bool
 	Seat            uint8
 	HandCardsGetted bool
+	HandCards       []Card
 }
 
 func NewPlayer(userInfo *model.User) *Player {

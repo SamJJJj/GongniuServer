@@ -3,14 +3,19 @@ package service
 import "math/rand"
 
 const (
-	TotalCardsCnt = 24
-	TotalPlayers  = 4
-	HandCardCount = 6
+	TotalCardsCnt uint8 = 24
+	TotalPlayers  uint8 = 4
+	HandCardCount uint8 = 6
 )
 
 type Card struct {
 	Head uint8
 	Tail uint8
+}
+
+var InvalidCard = Card{
+	Head: 0,
+	Tail: 0,
 }
 
 var AllCards = initAllCards()
@@ -122,7 +127,7 @@ func Shuffle() []uint8 {
 	for i := range res {
 		res[i] = uint8(i)
 	}
-	rand.Shuffle(TotalCardsCnt, func(i, j int) {
+	rand.Shuffle(int(TotalCardsCnt), func(i, j int) {
 		res[i], res[j] = res[j], res[i]
 	})
 	return res

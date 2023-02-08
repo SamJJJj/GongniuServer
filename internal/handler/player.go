@@ -135,7 +135,7 @@ func GetHandCardsHandler(client *websocket.Client, cmd string, message []byte) (
 		data = []byte(err.Error())
 		return
 	}
-	startIdx := seat * service.HandCardCount
+	startIdx := uint8(seat) * service.HandCardCount
 	cardsIdx := room.Cards[startIdx : startIdx+service.HandCardCount]
 	cards := make([]model.CardsInfo, service.HandCardCount)
 	for idx, i := range cardsIdx {
@@ -187,7 +187,56 @@ func CheckGetCardsHandler(client *websocket.Client, cmd string, message []byte) 
 	player.CardsGetted()
 	code = ecode.Success
 	response := model.CheckGetCardsResponse{}
+	if room.CheckNeedPlay() {
+		clients := room.GetAllClients()
+		playResponse := model.GamePlayingNotify{
+			CurrPlayingSeat: room.CurrPlayer.Seat,
+			Cards:           nil,
+		}
+		data, err = json.Marshal(&playResponse)
+		websocket.NotifyMessage(clients, NotifyGamePlaying, code, data)
+	}
+	data, err = json.Marshal(&response)
+	if err != nil {
+		log.Error("check get cards json marshal error", message)
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
+	return
+}
 
+func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
+	request := &model.PlayCardRequest{}
+	err := json.Unmarshal(message, request)
+	if err != nil {
+		log.Error("play card params error", message, err)
+		code = ecode.ParamsError
+		data = []byte("param unmarshal error")
+		return
+	}
+	room, err := manager.GetRoomById(request.RoomId)
+	if err != nil {
+		log.Error("play card params error", message, err)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+	card := service.Card{
+		Head: request.Card.Head,
+		Tail: request.Card.Tail,
+	}
+	// room + user check
+	err = room.PlayCard(card, request.Seat)
+	if err != nil {
+		log.Error("play card error", message, err)
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
+
+	response := model.PlayCardResponse{}
+	code = ecode.Success
 	data, err = json.Marshal(&response)
 	if err != nil {
 		log.Error("check get cards json marshal error", message)
