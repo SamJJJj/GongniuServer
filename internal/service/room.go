@@ -137,6 +137,9 @@ func (r *Room) CheckIfRoomNeedStart() bool {
 	res := true
 	r.userLock.RLock()
 	defer r.userLock.RUnlock()
+	if len(r.Users) != 4 {
+		return false
+	}
 	for _, player := range r.Users {
 		if !player.IsReady {
 			res = false
