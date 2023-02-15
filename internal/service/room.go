@@ -28,10 +28,14 @@ type Room struct {
 	Users       map[string]*Player // 所有用户的id
 	Master      string             // 房主的用户id, 庄家的id
 	Seat2Player []*Player          // 座位到玩家的映射
-	Cards       []uint8            // 当前轮次洗牌结果，记录索引 ---  出过的牌标记为24
+	Cards       []uint8            // 当前轮次洗牌结果，记录索引
+	CardsStatus []uint8            // 记录对应索引卡牌是否可用 0 -- 可以出 1 -- 已经出过 2 -- 扣下
+	Scores      []int              // 每个座位的分数
+	FirstPlayer *Player            // 第一个出牌的(头牌)
 	CurrPlayer  *Player            // 当前出牌玩家
 	userLock    sync.RWMutex       // 玩家相关操作的锁
 	LastCard    Card               // 上一张卡片
+	TableCards  []Card             // 桌上已经出的牌
 }
 
 func NewRoom(masterId string, roomId string) *Room {
@@ -39,13 +43,18 @@ func NewRoom(masterId string, roomId string) *Room {
 	player, _ := Manager.GetPlayerById(masterId)
 	player.Seat = Seat1
 	users[masterId] = player
+	seat2Player := make([]*Player, TotalPlayers)
+	seat2Player[0] = player
 	return &Room{
 		RoomId:      roomId, // 用随机数生成，需要确保不重复
 		RoomStatus:  GameReadying,
 		Users:       users,
 		Master:      masterId,
 		Cards:       make([]uint8, TotalCardsCnt),
-		Seat2Player: make([]*Player, TotalPlayers),
+		CardsStatus: make([]uint8, TotalCardsCnt),
+		Seat2Player: seat2Player,
+		Scores:      make([]int, TotalPlayers),
+		TableCards:  make([]Card, 0),
 		LastCard:    InvalidCard,
 	}
 }
@@ -150,6 +159,7 @@ func (r *Room) CheckIfRoomNeedStart() bool {
 }
 func (r *Room) GetPlayerById(userId string) (player *Player, err error) {
 	r.userLock.RLock()
+	defer r.userLock.RUnlock()
 	player, ok := r.Users[userId]
 	if !ok {
 		err = fmt.Errorf("room no such user")
@@ -160,6 +170,9 @@ func (r *Room) GetPlayerById(userId string) (player *Player, err error) {
 
 func (r *Room) GameStart() (err error) {
 	r.RoomStatus = GamePlaying
+	for i, _ := range r.CardsStatus {
+		r.CardsStatus[i] = 0
+	}
 	r.Cards = Shuffle()
 	// 随机一个人出牌
 	rand.Seed(time.Now().Unix())
@@ -169,6 +182,7 @@ func (r *Room) GameStart() (err error) {
 		return fmt.Errorf("internal error")
 	}
 	r.CurrPlayer = player
+	r.FirstPlayer = player
 	return err
 }
 
@@ -226,17 +240,45 @@ func (r *Room) getUserBySeat(seat uint8) *Player {
 	return player
 }
 
-func (r *Room) PlayCard(card Card, seat uint8) (err error) {
+func (r *Room) DisableCard(card Card, seat uint8) (err error) {
+	if r.LastCard == InvalidCard {
+		err = fmt.Errorf("cannot disable card")
+		return
+	}
+
+	if r.currSeatHavePlayableCard(r.LastCard, r.getCardsBySeat(seat), seat) {
+		err = fmt.Errorf("have cards to play")
+		return
+	}
+
+	idx, _ := r.getCardIdx(card, seat)
+	// 扣牌
+	r.CardsStatus[seat*HandCardCount+idx] = 2
+	r.CurrPlayer = r.getUserBySeat((seat + 1) % 4)
+	return
+}
+
+func (r *Room) PlayCard(card Card, seat uint8) (isFinish bool, err error) {
 	playable := r.isCardPlayable(card, seat)
+	isFinish = false
 	if playable {
 		// 出牌逻辑，主要是把那张牌置空
 		idx, cardIdx := r.getCardIdx(card, seat)
+		// 错误，出了不存在的牌
 		if cardIdx == TotalCardsCnt {
 			err = fmt.Errorf("no such card")
 			return
 		}
-		r.Cards[seat*HandCardCount+idx] = TotalCardsCnt
+		// 对应卡牌状态置为出掉
+		r.CardsStatus[seat*HandCardCount+idx] = 1
+		r.LastCard = card
+		r.TableCards = append(r.TableCards, card)
+		r.CurrPlayer = r.getUserBySeat((seat + 1) % 4)
 		// 检查是否要算账/ 牌是否出完
+		if r.CheckIfNeedFinish(seat) || r.CheckIfNeedSettle(card, seat) {
+			isFinish = true
+			return
+		}
 	} else {
 		err = fmt.Errorf("cannot play this card")
 	}
@@ -247,7 +289,7 @@ func (r *Room) getCardIdx(card Card, seat uint8) (resIdx uint8, resVal uint8) {
 	cards := r.getCardsBySeat(seat)
 	resVal = TotalCardsCnt
 	for idx, i := range cards {
-		if i != TotalCardsCnt && card == AllCards[i] {
+		if r.CardsStatus[idx+int(seat*HandCardCount)] == 0 && card == AllCards[i] {
 			resIdx = uint8(idx)
 			resVal = i
 		}
@@ -255,6 +297,7 @@ func (r *Room) getCardIdx(card Card, seat uint8) (resIdx uint8, resVal uint8) {
 	return
 }
 
+// 获取对应座位的所有手牌，如果需要获得卡牌的原始索引需要 + seat*HandCardCount
 func (r *Room) getCardsBySeat(seat uint8) []uint8 {
 	cards := make([]uint8, HandCardCount)
 	cards = r.Cards[seat*HandCardCount : seat*HandCardCount+HandCardCount]
@@ -264,17 +307,18 @@ func (r *Room) getCardsBySeat(seat uint8) []uint8 {
 func (r *Room) isCardPlayable(card Card, seat uint8) bool {
 	var playablePlayers = 0
 	if r.LastCard == InvalidCard {
-		// 第一次出牌
+		// 第一次出牌， 不能拉三家，即出的牌不能是其他三家都没有竖牌的牌；
 		_, cardIdx := r.getCardIdx(card, seat)
-		// 没找到能出的牌
+		// 没找到能出的牌， 出错，不应该有这种case
 		if cardIdx == TotalCardsCnt {
 			return false
 		}
 		otherSeat := (seat + 1) % TotalPlayers
 		for otherSeat != seat {
-			if currSeatHavePlayableCard(card, r.getCardsBySeat(otherSeat)) {
+			if r.currSeatHavePlayableCard(card, r.getCardsBySeat(otherSeat), otherSeat) {
 				playablePlayers += 1
 			}
+			otherSeat = (otherSeat + 1) % TotalPlayers
 		}
 		if playablePlayers == 0 {
 			// 不能其他三家没有牌出
@@ -282,25 +326,153 @@ func (r *Room) isCardPlayable(card Card, seat uint8) bool {
 		}
 		return true
 	} else {
-		return checkCardCanPlay(r.LastCard, card)
+		return checkCardCanPlay(r.LastCard, card, false)
 	}
 }
 
-func currSeatHavePlayableCard(lastCard Card, cards []uint8) bool {
-	for _, card := range cards {
-		if card == TotalCardsCnt {
+func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
+	// 1 --- 检查是否需要算账
+	var playablePlayers = 0
+	otherSeat := (seat + 1) % TotalPlayers
+	for otherSeat != seat {
+		if r.currSeatHavePlayableCard(card, r.getCardsBySeat(otherSeat), otherSeat) {
+			playablePlayers += 1
+		}
+		otherSeat = (otherSeat + 1) % TotalPlayers
+	}
+	if playablePlayers != 0 {
+		return false
+	}
+	// 分数排名从小到大
+
+	if seat == r.FirstPlayer.Seat {
+		// 头牌算账
+		cardCnt := 0
+		idx := seat * HandCardCount
+		for idx < seat*HandCardCount+HandCardCount {
+			if r.CardsStatus[idx] == 0 {
+				cardCnt += 1
+			}
+		}
+		if cardCnt == 1 {
+			r.calcScoreNorMal()
+		} else {
+			// 判断是否算账成功
+			r.calcSettled(seat)
+		}
+	} else if r.currSeatHavePlayableCard(r.LastCard, r.getCardsBySeat(seat), seat) {
+		// 是否是死砸账
+		// 判断是否算账成功
+		r.calcSettled(seat)
+	} else {
+		// 普通算分
+		r.calcScoreNorMal()
+	}
+	return true
+}
+
+// 当前用户是否出完牌，只要第一个人出完牌就是赢家
+func (r *Room) CheckIfNeedFinish(seat uint8) bool {
+	// 是否所有人牌都出完
+	idx := seat * HandCardCount
+	for idx < seat*HandCardCount+HandCardCount {
+		if r.CardsStatus[idx] == 0 {
+			return false
+		}
+	}
+	r.calcScoreNorMal()
+	return true
+}
+
+// 返回数组，第一个是手牌点数最小的
+func (r *Room) calcCounts() []int {
+	var seat uint8 = 0
+	counts := make([]uint8, 4)
+	for seat < TotalSeats {
+		idx := seat * HandCardCount
+		for idx < seat*HandCardCount+HandCardCount {
+			i := r.Cards[idx]
+			if r.CardsStatus[idx] != 1 {
+				counts[seat] += AllCards[i].GetCount()
+			}
+		}
+		seat += 1
+	}
+	return sort(counts)
+}
+
+func (r *Room) calcScoreNorMal() {
+	seats := r.calcCounts()
+	r.Scores[seats[0]] += 6
+	r.Scores[seats[1]] -= 1
+	r.Scores[seats[0]] -= 2
+	r.Scores[seats[0]] -= 3
+}
+
+func (r *Room) calcSettled(seat uint8) {
+	counts := r.calcCounts()
+	if counts[0] == int(seat) {
+		r.Scores[seat] += 12
+		r.Scores[counts[1]] -= 2
+		r.Scores[counts[2]] -= 4
+		r.Scores[counts[3]] -= 6
+	} else {
+		r.Scores[seat] -= 12
+		r.Scores[counts[0]] += 12
+	}
+}
+
+// 检查当前座位是否有竖牌可以出
+func (r *Room) currSeatHavePlayableCard(lastCard Card, cards []uint8, seat uint8) bool {
+	for idx, card := range cards {
+		if r.CardsStatus[idx+int(seat*HandCardCount)] != 0 {
 			continue
 		}
-		if checkCardCanPlay(lastCard, AllCards[card]) {
+		if checkCardCanPlay(lastCard, AllCards[card], true) {
 			return true
 		}
 	}
 	return false
 }
 
-func checkCardCanPlay(lastCard Card, currCard Card) bool {
+// 检查是否有竖牌可以出
+func checkCardCanPlay(lastCard Card, currCard Card, withStanding bool) bool {
 	if lastCard.Head == currCard.Head || lastCard.Tail == currCard.Tail || lastCard.Tail == currCard.Head || lastCard.Head == currCard.Tail {
-		return true
+		if (withStanding && currCard.isStanding()) || !withStanding {
+			return true
+		} else {
+			return false
+		}
 	}
 	return false
+}
+
+func sort(array []uint8) []int {
+	var n int = len(array)
+	var index []int
+	for i := 0; i < n; i++ {
+		index = append(index, i)
+	}
+	// fmt.Println(index)
+	// fmt.Println("数组array的长度为：", n)
+	if n < 2 {
+		return nil
+	}
+	for i := 1; i < n; i++ {
+		// fmt.Printf("检查第%d个元素%f\t", i, array[i])
+		var temp = array[i]
+		var tempIndex = index[i]
+		var k int = i - 1
+		for k >= 0 && array[k] > temp {
+			k--
+		}
+		for j := i; j > k+1; j-- {
+			array[j] = array[j-1]
+			index[j] = index[j-1]
+		}
+		// fmt.Printf("其位置为%d\n", k+1)
+		array[k+1] = temp
+		index[k+1] = tempIndex
+	}
+	return index
 }

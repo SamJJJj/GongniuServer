@@ -67,4 +67,6 @@ func RegisterWSRouter() {
 	websocket.RegisterHandler(handler.PlayerReady, handler.PlayerReadyHandler)
 	websocket.RegisterHandler(handler.GetHandCards, handler.GetHandCardsHandler)
 	websocket.RegisterHandler(handler.CheckGetCards, handler.CheckGetCardsHandler)
+	websocket.RegisterHandler(handler.PlayCard, handler.PlayCardHandler)
+	websocket.RegisterHandler(handler.DisableCard, handler.DisableCardHandler)
 }

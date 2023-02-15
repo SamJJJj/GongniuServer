@@ -35,17 +35,7 @@ func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (c
 		return
 	}
 	player.Ready()
-
 	code = ecode.Success
-	response := model.PlayerReadyResponse{}
-
-	data, err = json.Marshal(&response)
-	if err != nil {
-		log.Error("player ready json marshal error", message)
-		code = ecode.InternalError
-		data = []byte(err.Error())
-		return
-	}
 
 	var (
 		notifyCmd string
@@ -99,6 +89,15 @@ func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (c
 	}
 	websocket.NotifyMessage(clients, notifyCmd, code, data)
 
+	response := model.PlayerReadyResponse{}
+
+	data, err = json.Marshal(&response)
+	if err != nil {
+		log.Error("player ready json marshal error", message)
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
 	return
 }
 
@@ -227,7 +226,7 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 		Tail: request.Card.Tail,
 	}
 	// room + user check
-	err = room.PlayCard(card, request.Seat)
+	isFinish, err := room.PlayCard(card, request.Seat)
 	if err != nil {
 		log.Error("play card error", message, err)
 		code = ecode.InternalError
@@ -235,11 +234,108 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 		return
 	}
 
-	response := model.PlayCardResponse{}
 	code = ecode.Success
+
+	if isFinish {
+		// 通知游戏结束
+		var scores = make([]model.ScoreInfo, service.TotalPlayers)
+		for idx, score := range room.Scores {
+			scores[idx].Score = score
+			scores[idx].Seat = score
+		}
+		response := model.GameFinishNotify{Scores: scores}
+		data, err = json.Marshal(&response)
+		if err != nil {
+			log.Error("check get cards json marshal error", message)
+			code = ecode.InternalError
+			data = []byte(err.Error())
+			return
+		}
+		clients := room.GetAllClients()
+		websocket.NotifyMessage(clients, NotifyGameFinished, code, data)
+	} else {
+		cards := make([]model.CardsInfo, 0)
+		for _, card := range room.TableCards {
+			cards = append(cards, model.CardsInfo{
+				Head: card.Head,
+				Tail: card.Tail,
+			})
+		}
+		response := model.GamePlayingNotify{CurrPlayingSeat: room.CurrPlayer.Seat, Cards: cards}
+		data, err = json.Marshal(&response)
+		if err != nil {
+			log.Error("check get cards json marshal error", message)
+			code = ecode.InternalError
+			data = []byte(err.Error())
+			return
+		}
+		clients := room.GetAllClients()
+		websocket.NotifyMessage(clients, NotifyGamePlaying, code, data)
+	}
+
+	response := model.PlayCardResponse{}
 	data, err = json.Marshal(&response)
 	if err != nil {
 		log.Error("check get cards json marshal error", message)
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
+	return
+}
+
+func DisableCardHandler(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
+	request := &model.DisableCardRequest{}
+	err := json.Unmarshal(message, request)
+	if err != nil {
+		log.Error("disable card params error", message, err)
+		code = ecode.ParamsError
+		data = []byte("param unmarshal error")
+		return
+	}
+	room, err := manager.GetRoomById(request.RoomId)
+	if err != nil {
+		log.Error("disable card params error", message, err)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+	card := service.Card{
+		Head: request.Card.Head,
+		Tail: request.Card.Tail,
+	}
+	// room + user check
+	err = room.DisableCard(card, request.Seat)
+	if err != nil {
+		log.Error("disable card params error", message, err)
+		code = ecode.ParamsError
+		data = []byte(err.Error())
+		return
+	}
+
+	cards := make([]model.CardsInfo, 0)
+	for _, card := range room.TableCards {
+		cards = append(cards, model.CardsInfo{
+			Head: card.Head,
+			Tail: card.Tail,
+		})
+	}
+	response := model.GamePlayingNotify{CurrPlayingSeat: room.CurrPlayer.Seat, Cards: cards}
+	data, err = json.Marshal(&response)
+	if err != nil {
+		log.Error("check get cards json marshal error", message)
+		code = ecode.InternalError
+		data = []byte(err.Error())
+		return
+	}
+	clients := room.GetAllClients()
+	websocket.NotifyMessage(clients, NotifyGamePlaying, code, data)
+
+	code = ecode.Success
+	response1 := model.DisableCardResponse{}
+	data, err = json.Marshal(&response1)
+	if err != nil {
+		log.Error("disable card json marshal error", message)
 		code = ecode.InternalError
 		data = []byte(err.Error())
 		return

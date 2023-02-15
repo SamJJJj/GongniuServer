@@ -27,8 +27,8 @@ func initAllCards() []Card {
 			Tail: 6,
 		},
 		{
-			Head: 5,
-			Tail: 6,
+			Head: 6,
+			Tail: 5,
 		},
 		{
 			Head: 5,
@@ -71,8 +71,8 @@ func initAllCards() []Card {
 			Tail: 6,
 		},
 		{
-			Head: 5,
-			Tail: 6,
+			Head: 6,
+			Tail: 5,
 		},
 		{
 			Head: 5,
@@ -135,4 +135,9 @@ func Shuffle() []uint8 {
 
 func (c Card) GetCount() uint8 {
 	return c.Tail + c.Head
+}
+
+// false 横牌， true 竖牌
+func (c Card) isStanding() bool {
+	return c.Tail != c.Head
 }

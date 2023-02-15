@@ -16,6 +16,11 @@ type UserInfo struct {
 	AvatarUrl string `json:"avatar_url"`
 }
 
+type ScoreInfo struct {
+	Score int `json:"score"`
+	Seat  int `json:"seat"`
+}
+
 type CardsInfo struct {
 	Head uint8 `json:"head"`
 	Tail uint8 `json:"tail"`
@@ -42,12 +47,6 @@ type CreateRoomResponse struct {
 type JoinRoomRequest struct {
 	RoomId string `json:"room_id"`
 	UserId string `json:"user_id"`
-}
-
-type RoomMemberChangeNotify struct {
-	CurrentSeat uint8        `json:"current_seat"`
-	Players     []PlayerInfo `json:"players"`
-	MasterSeat  uint8        `json:"master_seat"`
 }
 
 type LeaveRoomRequest struct {
@@ -96,4 +95,24 @@ type PlayCardRequest struct {
 }
 
 type PlayCardResponse struct {
+}
+
+type RoomMemberChangeNotify struct {
+	CurrentSeat uint8        `json:"current_seat"`
+	Players     []PlayerInfo `json:"players"`
+	MasterSeat  uint8        `json:"master_seat"`
+}
+
+type GameFinishNotify struct {
+	Scores []ScoreInfo `json:"scores"`
+}
+
+type DisableCardRequest struct {
+	UserId string    `json:"user_id"` // 是否能统一进行check?
+	RoomId string    `json:"room_id"`
+	Seat   uint8     `json:"seat"`
+	Card   CardsInfo `json:"card"`
+}
+
+type DisableCardResponse struct {
 }
