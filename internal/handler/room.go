@@ -91,7 +91,7 @@ func JoinRoomHander(client *websocket.Client, cmd string, message []byte) (code 
 	return
 }
 
-func LeaveRoomHander(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
+func LeaveRoomHandler(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
 	request := &model.LeaveRoomRequest{}
 	err := json.Unmarshal(message, request)
 	if err != nil {
@@ -107,16 +107,19 @@ func LeaveRoomHander(client *websocket.Client, cmd string, message []byte) (code
 		data = []byte("user id error")
 		return
 	}
+	roomId := player.Room.RoomId
 	err = player.LeaveRoom()
 	if err != nil {
 		code = ecode.InternalError
 		data = []byte(err.Error())
 		return
 	}
-	room, err := manager.GetRoomById(player.Room.RoomId)
-	if err != nil {
-		code = ecode.InternalError
-		data = []byte(err.Error())
+	room, err := manager.GetRoomById(roomId)
+
+	if room == nil {
+		// 表明房间已经销毁
+		code = ecode.Success
+		data = []byte("success")
 		return
 	}
 

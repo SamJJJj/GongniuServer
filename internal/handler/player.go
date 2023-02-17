@@ -241,7 +241,7 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 		var scores = make([]model.ScoreInfo, service.TotalPlayers)
 		for idx, score := range room.Scores {
 			scores[idx].Score = score
-			scores[idx].Seat = score
+			scores[idx].Seat = idx
 		}
 		response := model.GameFinishNotify{Scores: scores}
 		data, err = json.Marshal(&response)
@@ -253,6 +253,7 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 		}
 		clients := room.GetAllClients()
 		websocket.NotifyMessage(clients, NotifyGameFinished, code, data)
+		room.ResetGameAfterFinish()
 	} else {
 		cards := make([]model.CardsInfo, 0)
 		for _, card := range room.TableCards {

@@ -29,6 +29,7 @@ func wsPage(w http.ResponseWriter, req *http.Request) {
 	log.Info("webSocket connected:", conn.RemoteAddr().String())
 	currentTime := uint64(time.Now().Unix())
 	client := NewClient(conn.RemoteAddr().String(), conn, currentTime)
+	client.connected()
 
 	go client.write()
 	go client.read()

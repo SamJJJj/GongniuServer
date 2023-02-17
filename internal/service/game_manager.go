@@ -92,7 +92,7 @@ func (g *GameManager) GetRoomById(roomId string) (room *Room, err error) {
 	room, ok := g.Rooms[roomId]
 	if !ok {
 		room = nil
-		err = fmt.Errorf("no such room")
+		err = nil
 	}
 	return
 }

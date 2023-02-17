@@ -3,6 +3,7 @@ package service
 import (
 	"demo/internal/server/websocket"
 	"fmt"
+	"github.com/go-eagle/eagle/pkg/log"
 	"math/rand"
 	"sync"
 	"time"
@@ -45,7 +46,7 @@ func NewRoom(masterId string, roomId string) *Room {
 	users[masterId] = player
 	seat2Player := make([]*Player, TotalPlayers)
 	seat2Player[0] = player
-	return &Room{
+	room := &Room{
 		RoomId:      roomId, // 用随机数生成，需要确保不重复
 		RoomStatus:  GameReadying,
 		Users:       users,
@@ -57,6 +58,8 @@ func NewRoom(masterId string, roomId string) *Room {
 		TableCards:  make([]Card, 0),
 		LastCard:    InvalidCard,
 	}
+	player.Room = room
+	return room
 }
 
 func (r *Room) AddPlayer(userId string) (err error, seat uint8) {
@@ -186,6 +189,24 @@ func (r *Room) GameStart() (err error) {
 	return err
 }
 
+func (r *Room) ResetGameAfterFinish() {
+	for i := range r.Cards {
+		r.Cards[i] = TotalCardsCnt
+	}
+	for i := range r.CardsStatus {
+		r.Cards[i] = 0
+	}
+	r.LastCard = InvalidCard
+	r.TableCards = make([]Card, 0)
+	r.userLock.Lock()
+	defer r.userLock.Unlock()
+	for _, user := range r.Users {
+		user.IsReady = false
+		user.HandCardsGetted = false
+	}
+	log.Info("clear finished")
+}
+
 func (r *Room) CheckNeedPlay() bool { // 返回是否需要开始出牌
 	r.userLock.RLock()
 	defer r.userLock.RUnlock()
@@ -229,6 +250,7 @@ func (r *Room) removeUser(userId string) {
 	r.userLock.Lock()
 	defer r.userLock.Unlock()
 	player, _ := r.Users[userId]
+	player.Room = nil
 	r.Seat2Player[player.Seat] = nil
 	delete(r.Users, userId)
 }
@@ -260,10 +282,12 @@ func (r *Room) DisableCard(card Card, seat uint8) (err error) {
 
 func (r *Room) PlayCard(card Card, seat uint8) (isFinish bool, err error) {
 	playable := r.isCardPlayable(card, seat)
+	log.Info("play card entered, playable:", playable, " card:", card)
 	isFinish = false
 	if playable {
 		// 出牌逻辑，主要是把那张牌置空
 		idx, cardIdx := r.getCardIdx(card, seat)
+		log.Info("cardIdx: ", cardIdx)
 		// 错误，出了不存在的牌
 		if cardIdx == TotalCardsCnt {
 			err = fmt.Errorf("no such card")
@@ -333,6 +357,7 @@ func (r *Room) isCardPlayable(card Card, seat uint8) bool {
 func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
 	// 1 --- 检查是否需要算账
 	var playablePlayers = 0
+	log.Info("check if need settle, seat:", seat, "card:", card)
 	otherSeat := (seat + 1) % TotalPlayers
 	for otherSeat != seat {
 		if r.currSeatHavePlayableCard(card, r.getCardsBySeat(otherSeat), otherSeat) {
@@ -341,44 +366,52 @@ func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
 		otherSeat = (otherSeat + 1) % TotalPlayers
 	}
 	if playablePlayers != 0 {
+		log.Info("do not need settle")
 		return false
 	}
 	// 分数排名从小到大
-
+	log.Info("need settle")
 	if seat == r.FirstPlayer.Seat {
 		// 头牌算账
+		log.Info("--first player settle--")
 		cardCnt := 0
 		idx := seat * HandCardCount
 		for idx < seat*HandCardCount+HandCardCount {
 			if r.CardsStatus[idx] == 0 {
 				cardCnt += 1
 			}
+			idx++
 		}
 		if cardCnt == 1 {
 			r.calcScoreNorMal()
+			log.Info("--first player normal score --")
 		} else {
 			// 判断是否算账成功
 			r.calcSettled(seat)
+			log.Info("--first player settle score --")
 		}
-	} else if r.currSeatHavePlayableCard(r.LastCard, r.getCardsBySeat(seat), seat) {
+	} else if !r.currSeatHavePlayableCard(r.LastCard, r.getCardsBySeat(seat), seat) {
 		// 是否是死砸账
-		// 判断是否算账成功
-		r.calcSettled(seat)
+		r.calcScoreNorMal()
 	} else {
 		// 普通算分
-		r.calcScoreNorMal()
+		r.calcSettled(seat)
 	}
+	log.Info("settled")
 	return true
 }
 
 // 当前用户是否出完牌，只要第一个人出完牌就是赢家
 func (r *Room) CheckIfNeedFinish(seat uint8) bool {
 	// 是否所有人牌都出完
+	log.Info("check if need finish, seat: ", seat)
 	idx := seat * HandCardCount
 	for idx < seat*HandCardCount+HandCardCount {
 		if r.CardsStatus[idx] == 0 {
+			log.Info("do not need finish")
 			return false
 		}
+		idx++
 	}
 	r.calcScoreNorMal()
 	return true
@@ -388,6 +421,7 @@ func (r *Room) CheckIfNeedFinish(seat uint8) bool {
 func (r *Room) calcCounts() []int {
 	var seat uint8 = 0
 	counts := make([]uint8, 4)
+	log.Info("enter calcCounts")
 	for seat < TotalSeats {
 		idx := seat * HandCardCount
 		for idx < seat*HandCardCount+HandCardCount {
@@ -395,22 +429,26 @@ func (r *Room) calcCounts() []int {
 			if r.CardsStatus[idx] != 1 {
 				counts[seat] += AllCards[i].GetCount()
 			}
+			idx++
 		}
-		seat += 1
+		seat++
 	}
+	log.Info("finish calcCounts: ", counts)
 	return sort(counts)
 }
 
 func (r *Room) calcScoreNorMal() {
+	log.Info("enter normal calc score")
 	seats := r.calcCounts()
 	r.Scores[seats[0]] += 6
 	r.Scores[seats[1]] -= 1
-	r.Scores[seats[0]] -= 2
-	r.Scores[seats[0]] -= 3
+	r.Scores[seats[2]] -= 2
+	r.Scores[seats[3]] -= 3
 }
 
 func (r *Room) calcSettled(seat uint8) {
 	counts := r.calcCounts()
+	log.Info("calc settled: ", counts)
 	if counts[0] == int(seat) {
 		r.Scores[seat] += 12
 		r.Scores[counts[1]] -= 2
