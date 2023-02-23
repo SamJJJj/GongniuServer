@@ -280,11 +280,12 @@ func (r *Room) DisableCard(card Card, seat uint8) (err error) {
 	return
 }
 
-func (r *Room) PlayWithoutChooseHead(card Card, seat uint8) (isFinish bool, needChoose bool, err error) {
+func (r *Room) PlayWithoutChooseHead(card Card, seat uint8) (isFinish bool, isHead bool, needChoose bool, err error) {
 	playable := r.isCardPlayable(card, seat)
 	log.Info("play card entered, playable:", playable, " card:", card)
 	isFinish = false
 	needChoose = false
+	isHead = false
 	if playable {
 		// 出牌逻辑，主要是把那张牌置空
 		idx, cardIdx := r.getCardIdx(card, seat)
@@ -315,9 +316,11 @@ func (r *Room) PlayWithoutChooseHead(card Card, seat uint8) (isFinish bool, need
 			if r.LastCard.Head == card.Head {
 				r.LastCard.Head = card.Tail
 				r.TableCards = insertAtBeginning(r.TableCards, card)
+				isHead = true
 			} else if r.LastCard.Head == card.Tail {
 				r.LastCard.Head = card.Head
 				r.TableCards = insertAtBeginning(r.TableCards, card)
+				isHead = true
 			} else if r.LastCard.Tail == card.Head {
 				r.LastCard.Tail = card.Tail
 				r.TableCards = append(r.TableCards, card)
@@ -339,10 +342,13 @@ func (r *Room) PlayWithoutChooseHead(card Card, seat uint8) (isFinish bool, need
 	return
 }
 
-func (r *Room) PlayWithChooseHead(card Card, onHead bool, seat uint8) (isFinish bool, err error) {
-	log.Info("in playwitchooseHead : ", card, " ", onHead)
+func (r *Room) PlayWithChooseHead(card Card, onHead bool, seat uint8) (isFinish bool, isHead bool, err error) {
+	log.Info("in play with chooseHead : ", card, " ", onHead)
+	isFinish = false
+	isHead = false
 	if onHead {
 		r.TableCards = insertAtBeginning(r.TableCards, card)
+		isHead = true
 		if r.LastCard.Head == card.Head {
 			r.LastCard.Head = card.Tail
 		} else {
@@ -362,7 +368,7 @@ func (r *Room) PlayWithChooseHead(card Card, onHead bool, seat uint8) (isFinish 
 		isFinish = true
 		return
 	}
-	return false, nil
+	return
 }
 
 func (r *Room) getCardIdx(card Card, seat uint8) (resIdx uint8, resVal uint8) {

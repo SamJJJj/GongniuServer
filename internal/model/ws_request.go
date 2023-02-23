@@ -87,6 +87,8 @@ type CheckGetCardsResponse struct {
 type GamePlayingNotify struct {
 	CurrPlayingSeat uint8       `json:"curr_playing_seat"`
 	Cards           []CardsInfo `json:"curr_cards"`
+	LastCard        CardsInfo   `json:"last_card"`
+	LastIsHead      bool        `json:"last_is_head"`
 }
 
 type PlayCardRequest struct {
