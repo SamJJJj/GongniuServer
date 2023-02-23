@@ -225,8 +225,14 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 		Head: request.Card.Head,
 		Tail: request.Card.Tail,
 	}
+	needChoose := false
+	isFinish := false
 	// room + user check
-	isFinish, err := room.PlayCard(card, request.Seat)
+	if request.OnHead == 0 {
+		isFinish, needChoose, err = room.PlayWithoutChooseHead(card, request.Seat)
+	} else {
+		isFinish, err = room.PlayWithChooseHead(card, request.OnHead == 1, request.Seat)
+	}
 	if err != nil {
 		log.Error("play card error", message, err)
 		code = ecode.InternalError
@@ -235,6 +241,18 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 	}
 
 	code = ecode.Success
+
+	if needChoose {
+		response := model.PlayCardResponse{NeedChooseSide: needChoose}
+		data, err = json.Marshal(&response)
+		if err != nil {
+			log.Error("check get cards json marshal error", message)
+			code = ecode.InternalError
+			data = []byte(err.Error())
+			return
+		}
+		return
+	}
 
 	if isFinish {
 		// 通知游戏结束
@@ -274,7 +292,7 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 		websocket.NotifyMessage(clients, NotifyGamePlaying, code, data)
 	}
 
-	response := model.PlayCardResponse{}
+	response := model.PlayCardResponse{NeedChooseSide: false}
 	data, err = json.Marshal(&response)
 	if err != nil {
 		log.Error("check get cards json marshal error", message)

@@ -35,7 +35,7 @@ type Room struct {
 	FirstPlayer *Player            // 第一个出牌的(头牌)
 	CurrPlayer  *Player            // 当前出牌玩家
 	userLock    sync.RWMutex       // 玩家相关操作的锁
-	LastCard    Card               // 上一张卡片
+	LastCard    Card               // 当前能出的牌 以此为标准， 头是第一张未用的，尾是最后一张未用的点数
 	TableCards  []Card             // 桌上已经出的牌
 }
 
@@ -280,10 +280,11 @@ func (r *Room) DisableCard(card Card, seat uint8) (err error) {
 	return
 }
 
-func (r *Room) PlayCard(card Card, seat uint8) (isFinish bool, err error) {
+func (r *Room) PlayWithoutChooseHead(card Card, seat uint8) (isFinish bool, needChoose bool, err error) {
 	playable := r.isCardPlayable(card, seat)
 	log.Info("play card entered, playable:", playable, " card:", card)
 	isFinish = false
+	needChoose = false
 	if playable {
 		// 出牌逻辑，主要是把那张牌置空
 		idx, cardIdx := r.getCardIdx(card, seat)
@@ -294,9 +295,38 @@ func (r *Room) PlayCard(card Card, seat uint8) (isFinish bool, err error) {
 			return
 		}
 		// 对应卡牌状态置为出掉
+		// 能出牌的场景
 		r.CardsStatus[seat*HandCardCount+idx] = 1
-		r.LastCard = card
-		r.TableCards = append(r.TableCards, card)
+		// 判断是否需要选择 出到头部/尾部 (可以出在头部 并且 可以出在尾部)
+		if r.LastCard != InvalidCard {
+			if checkNeedChoose(r.LastCard, card) {
+				// 需要进行选择
+				log.Info("need choose")
+				needChoose = true
+				return
+			}
+		}
+
+		// 更新当前卡牌状态
+		if r.LastCard == InvalidCard {
+			r.LastCard = card
+			r.TableCards = append(r.TableCards, card)
+		} else {
+			if r.LastCard.Head == card.Head {
+				r.LastCard.Head = card.Tail
+				r.TableCards = insertAtBeginning(r.TableCards, card)
+			} else if r.LastCard.Head == card.Tail {
+				r.LastCard.Head = card.Head
+				r.TableCards = insertAtBeginning(r.TableCards, card)
+			} else if r.LastCard.Tail == card.Head {
+				r.LastCard.Tail = card.Tail
+				r.TableCards = append(r.TableCards, card)
+			} else if r.LastCard.Tail == card.Tail {
+				r.LastCard.Tail = card.Head
+				r.TableCards = append(r.TableCards, card)
+			}
+		}
+
 		r.CurrPlayer = r.getUserBySeat((seat + 1) % 4)
 		// 检查是否要算账/ 牌是否出完
 		if r.CheckIfNeedFinish(seat) || r.CheckIfNeedSettle(card, seat) {
@@ -307,6 +337,32 @@ func (r *Room) PlayCard(card Card, seat uint8) (isFinish bool, err error) {
 		err = fmt.Errorf("cannot play this card")
 	}
 	return
+}
+
+func (r *Room) PlayWithChooseHead(card Card, onHead bool, seat uint8) (isFinish bool, err error) {
+	log.Info("in playwitchooseHead : ", card, " ", onHead)
+	if onHead {
+		r.TableCards = insertAtBeginning(r.TableCards, card)
+		if r.LastCard.Head == card.Head {
+			r.LastCard.Head = card.Tail
+		} else {
+			r.LastCard.Head = card.Head
+		}
+	} else {
+		r.TableCards = append(r.TableCards, card)
+		if r.LastCard.Tail == card.Head {
+			r.LastCard.Tail = card.Tail
+		} else if r.LastCard.Tail == card.Tail {
+			r.LastCard.Tail = card.Head
+		}
+	}
+	r.CurrPlayer = r.getUserBySeat((seat + 1) % 4)
+	// 检查是否要算账/ 牌是否出完
+	if r.CheckIfNeedFinish(seat) || r.CheckIfNeedSettle(card, seat) {
+		isFinish = true
+		return
+	}
+	return false, nil
 }
 
 func (r *Room) getCardIdx(card Card, seat uint8) (resIdx uint8, resVal uint8) {
@@ -369,6 +425,16 @@ func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
 		log.Info("do not need settle")
 		return false
 	}
+	// 优先级从高到低：
+	// TODO: 1. 打牌的时候只能两头上, 需要check是否要两头上 && 增加选择流程 done
+
+	// TODO: 2. 需要增加算账时候把能出的横牌扣掉的逻辑 done
+
+	// TODO: 3. 结算时显示手牌+分数
+
+	// TODO: 4. 显示手牌数
+
+	// TODO: - 5 优先级较低 发牌规则做到前端
 	// 分数排名从小到大
 	log.Info("need settle")
 	if seat == r.FirstPlayer.Seat {
@@ -426,6 +492,10 @@ func (r *Room) calcCounts() []int {
 		idx := seat * HandCardCount
 		for idx < seat*HandCardCount+HandCardCount {
 			i := r.Cards[idx]
+			if !AllCards[i].isStanding() && (AllCards[i].Head == r.LastCard.Head || AllCards[i].Head == r.LastCard.Tail) {
+				// 算分时候去除能出的横牌
+				r.CardsStatus[idx] = 1
+			}
 			if r.CardsStatus[idx] != 1 {
 				counts[seat] += AllCards[i].GetCount()
 			}
@@ -477,8 +547,10 @@ func (r *Room) currSeatHavePlayableCard(lastCard Card, cards []uint8, seat uint8
 func checkCardCanPlay(lastCard Card, currCard Card, withStanding bool) bool {
 	if lastCard.Head == currCard.Head || lastCard.Tail == currCard.Tail || lastCard.Tail == currCard.Head || lastCard.Head == currCard.Tail {
 		if (withStanding && currCard.isStanding()) || !withStanding {
+			log.Info("can play lastCard: ", lastCard, "currCard: ", currCard, "withStanding: ", withStanding)
 			return true
 		} else {
+			log.Info("can not paly lastCard: ", lastCard, "currCard: ", currCard, "withStanding: ", withStanding)
 			return false
 		}
 	}
@@ -513,4 +585,18 @@ func sort(array []uint8) []int {
 		index[k+1] = tempIndex
 	}
 	return index
+}
+
+func insertAtBeginning(arr []Card, element Card) []Card {
+	newArr := make([]Card, len(arr)+1) // 定义新数组
+	newArr[0] = element                // 将元素插入第一个位置
+	copy(newArr[1:], arr)              // 将原数组中的元素往后移动一位
+	return newArr                      // 返回新数组
+}
+
+func checkNeedChoose(lastCard Card, card Card) bool {
+	if (lastCard.Head == card.Head || lastCard.Head == card.Tail) && (lastCard.Tail == card.Head || lastCard.Tail == card.Tail) {
+		return true
+	}
+	return false
 }

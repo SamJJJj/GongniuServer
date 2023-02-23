@@ -9,6 +9,8 @@ type Request struct {
 type LoginRequest struct {
 	UserId    string `json:"user_id"`    // 用户id
 	AccountId string `json:"account_id"` //账户id
+	NickName  string `json:"nick_name"`  // 用户昵称
+	AvatarUrl string `json:"avatar_url"` // 头像链接
 }
 
 type UserInfo struct {
@@ -92,9 +94,11 @@ type PlayCardRequest struct {
 	RoomId string    `json:"room_id"`
 	Seat   uint8     `json:"seat"`
 	Card   CardsInfo `json:"card"`
+	OnHead uint8     `json:"on_head"` // 0 --- 未选择 / 1 --- 头部 / 2 --- 尾部
 }
 
 type PlayCardResponse struct {
+	NeedChooseSide bool `json:"need_choose_side"`
 }
 
 type RoomMemberChangeNotify struct {

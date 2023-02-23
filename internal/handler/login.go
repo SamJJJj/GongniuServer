@@ -27,8 +27,8 @@ func LoginHandler(client *websocket.Client, cmd string, message []byte) (code ui
 		log.Info("register to mysql")
 		user.UserId = request.UserId
 		user.AccountId = request.AccountId
-		user.NickName = "test" // TODO 需要随机生成
-		user.AvatarUrl = "test.png"
+		user.NickName = request.NickName // TODO 需要随机生成
+		user.AvatarUrl = request.AvatarUrl
 		model.InsertUser(user)
 	}
 	// service error 未处理
