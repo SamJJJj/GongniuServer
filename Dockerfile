@@ -11,7 +11,7 @@ RUN apk add --no-cache git make bash ca-certificates tzdata \
 ENV GO111MODULE=on \
     CGO_ENABLED=0 \
     GOOS=linux \
-    GOARCH=amd64 \
+    GOARCH=x86_64 \
     GOPROXY="https://goproxy.cn,direct" \
     TZ=Asia/Shanghai \
     APP_ENV=docker
