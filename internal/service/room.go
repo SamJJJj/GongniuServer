@@ -198,6 +198,7 @@ func (r *Room) ResetGameAfterFinish() {
 	}
 	r.LastCard = InvalidCard
 	r.TableCards = make([]Card, 0)
+	r.CardsStatus = make([]uint8, TotalCardsCnt)
 	r.userLock.Lock()
 	defer r.userLock.Unlock()
 	for _, user := range r.Users {
@@ -432,13 +433,9 @@ func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
 		return false
 	}
 	// 优先级从高到低：
-	// TODO: 1. 打牌的时候只能两头上, 需要check是否要两头上 && 增加选择流程 done
-
-	// TODO: 2. 需要增加算账时候把能出的横牌扣掉的逻辑 done
-
 	// TODO: 3. 结算时显示手牌+分数
 
-	// TODO: 4. 显示手牌数
+	// TODO: 4. 增加兜红禁手
 
 	// TODO: - 5 优先级较低 发牌规则做到前端
 	// 分数排名从小到大

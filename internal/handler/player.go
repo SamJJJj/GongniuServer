@@ -263,7 +263,43 @@ func PlayCardHandler(client *websocket.Client, cmd string, message []byte) (code
 			scores[idx].Score = score
 			scores[idx].Seat = idx
 		}
-		response := model.GameFinishNotify{Scores: scores}
+		var cardsOnFinish = make([]model.CardsInfoOnFinish, service.TotalPlayers)
+		for seat := 0; seat < 4; seat++ {
+			playedCards := make([]model.CardsInfo, 0)
+			disabledCards := make([]model.CardsInfo, 0)
+			handCards := make([]model.CardsInfo, 0)
+
+			startIdx := uint8(seat) * service.HandCardCount
+			endIdx := uint8(seat)*service.HandCardCount + service.HandCardCount
+			for startIdx < endIdx {
+				card := service.AllCards[room.Cards[startIdx]]
+				switch room.CardsStatus[startIdx] {
+				case 0:
+					handCards = append(handCards, model.CardsInfo{
+						Head: card.Head,
+						Tail: card.Tail,
+					})
+				case 1:
+					playedCards = append(playedCards, model.CardsInfo{
+						Head: card.Head,
+						Tail: card.Tail,
+					})
+				case 2:
+					disabledCards = append(disabledCards, model.CardsInfo{
+						Head: card.Head,
+						Tail: card.Tail,
+					})
+				}
+				startIdx++
+			}
+
+			cardsOnFinish[seat] = model.CardsInfoOnFinish{
+				PlayedCards:   playedCards,
+				DisabledCards: disabledCards,
+				HandCards:     handCards,
+			}
+		}
+		response := model.GameFinishNotify{Scores: scores, CardsOnFinish: cardsOnFinish}
 		data, err = json.Marshal(&response)
 		if err != nil {
 			log.Error("check get cards json marshal error", message)

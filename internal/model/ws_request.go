@@ -23,6 +23,12 @@ type ScoreInfo struct {
 	Seat  int `json:"seat"`
 }
 
+type CardsInfoOnFinish struct {
+	PlayedCards   []CardsInfo `json:"played_cards"`
+	DisabledCards []CardsInfo `json:"disabled_cards"`
+	HandCards     []CardsInfo `json:"hand_cards"`
+}
+
 type CardsInfo struct {
 	Head uint8 `json:"head"`
 	Tail uint8 `json:"tail"`
@@ -110,7 +116,8 @@ type RoomMemberChangeNotify struct {
 }
 
 type GameFinishNotify struct {
-	Scores []ScoreInfo `json:"scores"`
+	Scores        []ScoreInfo         `json:"scores"`
+	CardsOnFinish []CardsInfoOnFinish `json:"cards_on_finish"`
 }
 
 type DisableCardRequest struct {
