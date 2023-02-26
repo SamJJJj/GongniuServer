@@ -55,7 +55,7 @@ EXPOSE 8090
 EXPOSE 9090
 
 # 需要运行的命令
-CMD ["/bin/eagle", "-c", "/data/conf/eagle/config"]
+CMD ["/bin/demo", "-c", "/data/conf/eagle/config"]
 
 # 1. build image: docker build -t eagle:v1 -f Dockerfile .
 # 2. start: docker run --rm -it -p 8080:8080 eagle:v1
