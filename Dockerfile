@@ -7,6 +7,12 @@ RUN apk add --no-cache git make bash ca-certificates tzdata \
     --repository http://mirrors.aliyun.com/alpine/v3.11/community \
     --repository http://mirrors.aliyun.com/alpine/v3.11/main
 
+RUN mkdir /app/
+
+ADD . /app/
+
+WORKDIR /app
+
 # 镜像设置必要的环境变量
 ENV GO111MODULE=on \
     CGO_ENABLED=0 \
@@ -16,12 +22,7 @@ ENV GO111MODULE=on \
     TZ=Asia/Shanghai \
     APP_ENV=docker
 
-# 移动到工作目录
-WORKDIR /go/src/github.com/go-eagle/eagle
-
 # 复制项目中的 go.mod 和 go.sum文件并下载依赖信息
-COPY go.mod .
-COPY go.sum .
 RUN go mod download
 
 # 将代码复制到容器中
@@ -33,12 +34,13 @@ RUN make build
 
 # 创建一个小镜像
 # Final stage
-FROM debian:stretch-slim
+FROM alpine3.12
 
-WORKDIR /bin
+WORKDIR /app
+
+COPY --from=builder /app/main .
 
 # 从builder镜像中把 /build 拷贝到当前目录
-COPY --from=builder /go/src/github.com/go-eagle/eagle          /bin/eagle
 COPY --from=builder /go/src/github.com/go-eagle/eagle/config   /data/conf/eagle/config
 
 RUN mkdir -p /data/logs/
@@ -47,7 +49,7 @@ RUN mkdir -p /data/logs/
 EXPOSE 8090
 
 # 需要运行的命令
-CMD ["/bin/demo", "-c", "/data/conf/eagle/config"]
+CMD ["/bin/demo"]
 
 # 1. build image: docker build -t eagle:v1 -f Dockerfile .
 # 2. start: docker run --rm -it -p 8080:8080 eagle:v1
