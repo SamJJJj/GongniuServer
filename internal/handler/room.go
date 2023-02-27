@@ -7,6 +7,7 @@ import (
 	"demo/internal/service"
 	"encoding/json"
 	"github.com/go-eagle/eagle/pkg/log"
+	"github.com/toolkits/net"
 )
 
 func CreatRoomHandler(client *websocket.Client, cmd string, message []byte) (code uint32, data interface{}) {
@@ -64,7 +65,7 @@ func JoinRoomHander(client *websocket.Client, cmd string, message []byte) (code 
 	for _, v := range room.GetAllPlayers() {
 		players = append(players, model.PlayerInfo{
 			User: model.UserInfo{
-				NickName:  v.UserInfo.NickName,
+				NickName:  net.UrlEncode(v.UserInfo.NickName),
 				AvatarUrl: v.UserInfo.AvatarUrl,
 			},
 			Seat:    v.Seat,
@@ -129,7 +130,7 @@ func LeaveRoomHandler(client *websocket.Client, cmd string, message []byte) (cod
 	for _, v := range room.Users {
 		players = append(players, model.PlayerInfo{
 			User: model.UserInfo{
-				NickName:  v.UserInfo.NickName,
+				NickName:  net.UrlEncode(v.UserInfo.NickName),
 				AvatarUrl: v.UserInfo.AvatarUrl,
 			},
 			Seat:    v.Seat,

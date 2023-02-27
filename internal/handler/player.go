@@ -7,6 +7,7 @@ import (
 	"demo/internal/service"
 	"encoding/json"
 	"github.com/go-eagle/eagle/pkg/log"
+	"github.com/toolkits/net"
 	"strconv"
 )
 
@@ -50,7 +51,7 @@ func PlayerReadyHandler(client *websocket.Client, cmd string, message []byte) (c
 		for _, v := range room.GetAllPlayers() {
 			players = append(players, model.PlayerInfo{
 				User: model.UserInfo{
-					NickName:  v.UserInfo.NickName,
+					NickName:  net.UrlEncode(v.UserInfo.NickName),
 					AvatarUrl: v.UserInfo.AvatarUrl,
 				},
 				Seat:    v.Seat,

@@ -7,6 +7,7 @@ import (
 	"demo/internal/service"
 	"encoding/json"
 	"github.com/go-eagle/eagle/pkg/log"
+	"github.com/toolkits/net"
 )
 
 var manager = service.Manager
@@ -27,7 +28,7 @@ func LoginHandler(client *websocket.Client, cmd string, message []byte) (code ui
 		log.Info("register to mysql")
 		user.UserId = request.UserId
 		user.AccountId = request.AccountId
-		user.NickName = request.NickName // TODO 需要随机生成
+		user.NickName, _ = net.UrlDecode(request.NickName)
 		user.AvatarUrl = request.AvatarUrl
 		model.InsertUser(user)
 	}
