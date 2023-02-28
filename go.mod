@@ -13,6 +13,7 @@ require (
 	github.com/spf13/afero v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/swaggo/gin-swagger v1.2.0
+	github.com/toolkits/net v0.0.0-20160910085801-3f39ab6fe3ce // indirect
 	go.uber.org/automaxprocs v1.5.1
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
 	golang.org/x/sys v0.4.0 // indirect

@@ -37,6 +37,10 @@ type Room struct {
 	userLock    sync.RWMutex       // 玩家相关操作的锁
 	LastCard    Card               // 当前能出的牌 以此为标准， 头是第一张未用的，尾是最后一张未用的点数
 	TableCards  []Card             // 桌上已经出的牌
+	DouHongSeat uint8              // 标记有可能兜红的座位
+	IsDouHong   bool               // 标记结算时候是否需要兜红结算
+	IsOnFire    bool               // 标记是否冒火（已经出现一个金屛）
+	HongBaSeats []uint8            // 记录有未出的红八的人
 }
 
 func NewRoom(masterId string, roomId string) *Room {
@@ -57,6 +61,9 @@ func NewRoom(masterId string, roomId string) *Room {
 		Scores:      make([]int, TotalPlayers),
 		TableCards:  make([]Card, 0),
 		LastCard:    InvalidCard,
+		DouHongSeat: TotalPlayers,
+		IsDouHong:   false,
+		HongBaSeats: make([]uint8, 0),
 	}
 	player.Room = room
 	return room
@@ -199,6 +206,10 @@ func (r *Room) ResetGameAfterFinish() {
 	r.LastCard = InvalidCard
 	r.TableCards = make([]Card, 0)
 	r.CardsStatus = make([]uint8, TotalCardsCnt)
+	r.DouHongSeat = TotalPlayers
+	r.IsDouHong = false
+	r.IsOnFire = false
+	r.HongBaSeats = make([]uint8, 0)
 	r.userLock.Lock()
 	defer r.userLock.Unlock()
 	for _, user := range r.Users {
@@ -276,7 +287,13 @@ func (r *Room) DisableCard(card Card, seat uint8) (err error) {
 
 	idx, _ := r.getCardIdx(card, seat)
 	// 扣牌
-	r.CardsStatus[seat*HandCardCount+idx] = 2
+	if r.CardsStatus[seat*HandCardCount+idx] == 0 {
+		// 必须是可以出的牌才能扣掉
+		r.CardsStatus[seat*HandCardCount+idx] = 2
+	} else {
+		err = fmt.Errorf("card has been played")
+		return
+	}
 	r.CurrPlayer = r.getUserBySeat((seat + 1) % 4)
 	return
 }
@@ -330,10 +347,10 @@ func (r *Room) PlayWithoutChooseHead(card Card, seat uint8) (isFinish bool, isHe
 				r.TableCards = append(r.TableCards, card)
 			}
 		}
-
+		r.enterDouHong(seat, card)
 		r.CurrPlayer = r.getUserBySeat((seat + 1) % 4)
 		// 检查是否要算账/ 牌是否出完
-		if r.CheckIfNeedFinish(seat) || r.CheckIfNeedSettle(card, seat) {
+		if r.CheckIfNeedFinish(seat) || r.CheckIfNeedSettle(r.LastCard, seat) {
 			isFinish = true
 			return
 		}
@@ -363,13 +380,74 @@ func (r *Room) PlayWithChooseHead(card Card, onHead bool, seat uint8) (isFinish 
 			r.LastCard.Tail = card.Head
 		}
 	}
+
+	r.enterDouHong(seat, card)
 	r.CurrPlayer = r.getUserBySeat((seat + 1) % 4)
 	// 检查是否要算账/ 牌是否出完
-	if r.CheckIfNeedFinish(seat) || r.CheckIfNeedSettle(card, seat) {
+	if r.CheckIfNeedFinish(seat) || r.CheckIfNeedSettle(r.LastCard, seat) {
 		isFinish = true
 		return
 	}
 	return
+}
+
+func (r *Room) enterDouHong(seat uint8, card Card) {
+	if !r.IsOnFire && card == JinPing {
+		r.maoHuo()
+	} else if r.DouHongSeat == seat {
+		r.checkIfNeedDouHong(card)
+	}
+}
+
+func (r *Room) maoHuo() {
+	// 冒火
+	r.IsOnFire = true
+
+	// 找到下一个拿金屛的并且标记
+	var jinpingIdx = TotalCardsCnt
+	for idx, status := range r.CardsStatus {
+		// 1. 找到还有未出的金屛，并记录idx
+		if status == 0 && AllCards[r.Cards[idx]] == JinPing {
+			jinpingIdx = uint8(idx)
+			break
+		}
+	}
+
+	r.DouHongSeat = jinpingIdx / HandCardCount
+
+	cards := r.getCardsBySeat(r.DouHongSeat)
+
+	for iidx, idx := range cards {
+		if AllCards[idx] == HongBa && r.CardsStatus[r.DouHongSeat*HandCardCount+uint8(iidx)] == 0 {
+			r.DouHongSeat = TotalPlayers
+			break
+		}
+	}
+}
+
+func (r *Room) checkIfNeedDouHong(card Card) {
+	if r.LastCard.Head != 4 && r.LastCard.Tail != 4 {
+		return
+	}
+
+	var hongbaIdxs = make([]uint8, 0)
+	for idx, status := range r.CardsStatus {
+		// 1. 找到还有未出的红八，并记录idx
+		if status == 0 && AllCards[r.Cards[idx]] == HongBa {
+			hongbaIdxs = append(hongbaIdxs, uint8(idx))
+			break
+		}
+	}
+
+	for _, idx := range hongbaIdxs {
+		if idx/HandCardCount != r.DouHongSeat {
+			r.HongBaSeats = append(r.HongBaSeats, idx/HandCardCount)
+		}
+	}
+
+	if card != JinPing && len(r.HongBaSeats) > 0 {
+		r.IsDouHong = true
+	}
 }
 
 func (r *Room) getCardIdx(card Card, seat uint8) (resIdx uint8, resVal uint8) {
@@ -433,10 +511,6 @@ func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
 		return false
 	}
 	// 优先级从高到低：
-	// TODO: 3. 结算时显示手牌+分数
-
-	// TODO: 4. 增加兜红禁手
-
 	// TODO: - 5 优先级较低 发牌规则做到前端
 	// 分数排名从小到大
 	log.Info("need settle")
@@ -459,8 +533,8 @@ func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
 			r.calcSettled(seat)
 			log.Info("--first player settle score --")
 		}
-	} else if !r.currSeatHavePlayableCard(r.LastCard, r.getCardsBySeat(seat), seat) {
-		// 是否是死砸账
+	} else if !r.currSeatHavePlayableCardIncludeStand(r.LastCard, r.getCardsBySeat(seat), seat) {
+		// 是否是死砸账, 同时要考虑横牌/竖牌
 		r.calcScoreNorMal()
 	} else {
 		// 普通算分
@@ -524,6 +598,12 @@ func (r *Room) calcSettled(seat uint8) {
 	log.Info("calc settled: ", counts)
 	if counts[0] == int(seat) {
 		r.Scores[seat] += 12
+		for _, hSeat := range r.HongBaSeats {
+			if r.IsDouHong && hSeat == seat {
+				r.Scores[r.DouHongSeat] -= 12
+				return
+			}
+		}
 		r.Scores[counts[1]] -= 2
 		r.Scores[counts[2]] -= 4
 		r.Scores[counts[3]] -= 6
@@ -540,6 +620,18 @@ func (r *Room) currSeatHavePlayableCard(lastCard Card, cards []uint8, seat uint8
 			continue
 		}
 		if checkCardCanPlay(lastCard, AllCards[card], true) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Room) currSeatHavePlayableCardIncludeStand(lastCard Card, cards []uint8, seat uint8) bool {
+	for idx, card := range cards {
+		if r.CardsStatus[idx+int(seat*HandCardCount)] != 0 {
+			continue
+		}
+		if checkCardCanPlay(lastCard, AllCards[card], false) {
 			return true
 		}
 	}

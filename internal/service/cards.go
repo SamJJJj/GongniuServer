@@ -18,6 +18,16 @@ var InvalidCard = Card{
 	Tail: 0,
 }
 
+var JinPing = Card{
+	Head: 6,
+	Tail: 4,
+}
+
+var HongBa = Card{
+	Head: 4,
+	Tail: 4,
+}
+
 var AllCards = initAllCards()
 
 func initAllCards() []Card {
