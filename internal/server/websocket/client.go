@@ -64,7 +64,7 @@ func (c *Client) write() {
 	}()
 
 	defer func() {
-		clientManager.Unregister <- c
+		WebsocketManager.Unregister <- c
 		c.Socket.Close()
 		log.Info("client send data finished", c)
 	}()
@@ -110,5 +110,5 @@ func (c *Client) IsHeartbeatTimeout(currentTime uint64) (timeout bool) {
 }
 
 func (c *Client) connected() {
-	clientManager.AddClient(c)
+	WebsocketManager.AddClient(c)
 }

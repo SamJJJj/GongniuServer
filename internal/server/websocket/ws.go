@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-var clientManager = NewClientManager()
+var WebsocketManager = NewClientManager()
 
 func StartWebSocket(path string, addr string) {
 	http.HandleFunc(path, wsPage)
@@ -34,5 +34,5 @@ func wsPage(w http.ResponseWriter, req *http.Request) {
 	go client.write()
 	go client.read()
 
-	clientManager.Register <- client
+	WebsocketManager.Register <- client
 }

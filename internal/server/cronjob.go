@@ -97,33 +97,33 @@ func (s *Server) RunDelayTasks() {
 	// Enqueue task to be processed immediately.
 	// Use (*Client).Enqueue method.
 	// ------------------------------------------------------
-	task := tasks.NewEmailWelcomeTask(1)
-	info, err := s.client.Enqueue(task, asynq.Queue(tasks.QueueDefault))
-	if err != nil {
-		log.Errorf("could not enqueue task: %v", err)
-	}
-	log.Infof("enqueued task: id=%s queue=%s", info.ID, info.Queue)
-
-	// ------------------------------------------------------------
-	// Schedule task to be processed in the future.
-	// Use ProcessIn or ProcessAt option.
-	// ------------------------------------------------------------
-	task = tasks.NewEmailWelcomeTask(2)
-	info, err = s.client.Enqueue(task, asynq.ProcessIn(10*time.Second))
-	if err != nil {
-		log.Errorf("could not enqueue task: %v", err)
-	}
-	log.Infof("enqueued task: id=%s queue=%s", info.ID, info.Queue)
-
-	// ----------------------------------------------------------------------------
-	// Set other options to tune task processing behavior.
-	// Options include MaxRetry, Queue, Timeout, Deadline, Unique etc.
-	// ----------------------------------------------------------------------------
-	task = tasks.NewEmailWelcomeTask(3)
-	info, err = s.client.Enqueue(task, asynq.MaxRetry(10), asynq.Timeout(3*time.Minute))
-	if err != nil {
-		log.Errorf("could not enqueue task: %v", err)
-	}
-	log.Infof("enqueued task: id=%s queue=%s", info.ID, info.Queue)
+	//task := tasks.NewEmailWelcomeTask(1)
+	//info, err := s.client.Enqueue(task, asynq.Queue(tasks.QueueDefault))
+	//if err != nil {
+	//	log.Errorf("could not enqueue task: %v", err)
+	//}
+	//log.Infof("enqueued task: id=%s queue=%s", info.ID, info.Queue)
+	//
+	//// ------------------------------------------------------------
+	//// Schedule task to be processed in the future.
+	//// Use ProcessIn or ProcessAt option.
+	//// ------------------------------------------------------------
+	//task = tasks.NewEmailWelcomeTask(2)
+	//info, err = s.client.Enqueue(task, asynq.ProcessIn(10*time.Second))
+	//if err != nil {
+	//	log.Errorf("could not enqueue task: %v", err)
+	//}
+	//log.Infof("enqueued task: id=%s queue=%s", info.ID, info.Queue)
+	//
+	//// ----------------------------------------------------------------------------
+	//// Set other options to tune task processing behavior.
+	//// Options include MaxRetry, Queue, Timeout, Deadline, Unique etc.
+	//// ----------------------------------------------------------------------------
+	//task = tasks.NewEmailWelcomeTask(3)
+	//info, err = s.client.Enqueue(task, asynq.MaxRetry(10), asynq.Timeout(3*time.Minute))
+	//if err != nil {
+	//	log.Errorf("could not enqueue task: %v", err)
+	//}
+	//log.Infof("enqueued task: id=%s queue=%s", info.ID, info.Queue)
 	s.enqueueCleanTask()
 }

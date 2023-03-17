@@ -106,3 +106,17 @@ func genSixNum() string {
 	}
 	return randomNumberString
 }
+
+func (g *GameManager) logout(client *websocket.Client) {
+	var id = ""
+	g.userLock.RLock()
+	for _, v := range g.Users {
+		if v.Client == client {
+			id = v.Player.UserInfo.UserId
+		}
+	}
+	g.userLock.RUnlock()
+	if len(id) != 0 {
+		g.UserLogout(id)
+	}
+}

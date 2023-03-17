@@ -22,6 +22,17 @@ func QueryUserById(userId string) (user *User, ok bool) {
 	return
 }
 
+func QueryUserByName(userName string) (user *User, ok bool) {
+	user = new(User)
+	DB.Where("nick_name = ?", userName).First(&user)
+	if len(user.NickName) != 0 {
+		log.Info("user name Exist")
+		ok = true
+		return
+	}
+	return
+}
+
 func InsertUser(u *User) {
 	log.Info("insert user:", u)
 	DB.Create(u)

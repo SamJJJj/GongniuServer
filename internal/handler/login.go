@@ -24,7 +24,15 @@ func LoginHandler(client *websocket.Client, cmd string, message []byte) (code ui
 	// 查找是否有该用户/将用户写入数据库
 	user, ok := model.QueryUserById(request.UserId)
 	if !ok {
-		// 查找到直接返回用户信息
+		_, ook := model.QueryUserByName(request.NickName)
+		if ook {
+			// 有同名用户
+			code = ecode.ParamsError
+			log.Error("user name existed", message)
+			data = []byte("login error")
+			return
+		}
+		// 正确注册
 		log.Info("register to mysql")
 		user.UserId = request.UserId
 		user.AccountId = request.AccountId

@@ -89,6 +89,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	//var taskCfg tasks.Config
+	//if err := c.Load("cronjob", &taskCfg); err != nil {
+	//	panic(err)
+	//}
+	//cronJobService := service.NewCronJobService()
+	//server.NewCronJobServer(&taskCfg, cronJobService)
 	if err := app.Run(); err != nil {
 		panic(err)
 	}

@@ -280,7 +280,7 @@ func (r *Room) DisableCard(card Card, seat uint8) (err error) {
 		return
 	}
 
-	if r.currSeatHavePlayableCard(r.LastCard, r.getCardsBySeat(seat), seat) {
+	if r.currSeatHavePlayableCardIncludeStand(r.LastCard, r.getCardsBySeat(seat), seat) {
 		err = fmt.Errorf("have cards to play")
 		return
 	}
@@ -546,7 +546,6 @@ func (r *Room) CheckIfNeedSettle(card Card, seat uint8) bool {
 
 // 当前用户是否出完牌，只要第一个人出完牌就是赢家
 func (r *Room) CheckIfNeedFinish(seat uint8) bool {
-	// 是否所有人牌都出完
 	log.Info("check if need finish, seat: ", seat)
 	idx := seat * HandCardCount
 	for idx < seat*HandCardCount+HandCardCount {

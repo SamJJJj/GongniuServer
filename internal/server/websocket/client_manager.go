@@ -8,11 +8,12 @@ import (
 )
 
 type ClientManager struct {
-	Clients     map[*Client]bool
-	ClientsLock sync.RWMutex
-	Register    chan *Client
-	Unregister  chan *Client
-	Broadcast   chan []byte
+	Clients       map[*Client]bool
+	ClientsLock   sync.RWMutex
+	Register      chan *Client
+	Unregister    chan *Client
+	Broadcast     chan []byte
+	LogOutHandler func(client *Client)
 }
 
 func NewClientManager() (clientManager *ClientManager) {
@@ -48,6 +49,7 @@ func (manager *ClientManager) RegisterEvent(client *Client) {
 }
 
 func (manager *ClientManager) UnregisterEvent(client *Client) {
+	manager.LogOutHandler(client)
 	ok := manager.DeleteClient(client)
 	if !ok {
 		return
@@ -80,7 +82,7 @@ func (manager *ClientManager) GetClients() (clients map[*Client]bool) {
 func ClearTimeoutConnections() {
 	currentTime := uint64(time.Now().Unix())
 
-	clients := clientManager.GetClients()
+	clients := WebsocketManager.GetClients()
 	for client := range clients {
 		if client.IsHeartbeatTimeout(currentTime) {
 			fmt.Println("心跳时间超时 关闭连接", client.Addr, client.HeartBeatTime)
